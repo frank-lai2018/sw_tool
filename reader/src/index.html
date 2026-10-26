@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="zh-Hant-TW">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' blob:; script-src 'self'; style-src 'self' blob: 'unsafe-inline'; img-src 'self' blob: data:; font-src 'self' blob: data:; connect-src 'self' blob: data:; frame-src blob: data:; worker-src 'self' blob:; object-src 'none'; form-action 'none';">
+<title>電子書閱讀器</title>
+<link rel="stylesheet" href="style.css">
+<script type="module" src="app.js"></script>
+</head>
+<body data-theme="light">
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <symbol id="i-book" viewBox="0 0 24 24"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></symbol>
+    <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+    <symbol id="i-back" viewBox="0 0 24 24"><path d="M19 12H5M12 19l-7-7 7-7"/></symbol>
+    <symbol id="i-list" viewBox="0 0 24 24"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></symbol>
+    <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></symbol>
+    <symbol id="i-bookmark" viewBox="0 0 24 24"><path d="m19 21-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></symbol>
+    <symbol id="i-type" viewBox="0 0 24 24"><path d="M4 7V4h16v3M9 20h6M12 4v16"/></symbol>
+    <symbol id="i-expand" viewBox="0 0 24 24"><path d="M8 3H5a2 2 0 0 0-2 2v3M21 8V5a2 2 0 0 0-2-2h-3M3 16v3a2 2 0 0 0 2 2h3M16 21h3a2 2 0 0 0 2-2v-3"/></symbol>
+    <symbol id="i-left" viewBox="0 0 24 24"><path d="m15 18-6-6 6-6"/></symbol>
+    <symbol id="i-right" viewBox="0 0 24 24"><path d="m9 18 6-6-6-6"/></symbol>
+    <symbol id="i-x" viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></symbol>
+    <symbol id="i-trash" viewBox="0 0 24 24"><path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></symbol>
+    <symbol id="i-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></symbol>
+    <symbol id="i-moon" viewBox="0 0 24 24"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></symbol>
+  </defs>
+</svg>
+
+<!-- ============ 書架 ============ -->
+<section id="library-view">
+  <header class="topbar">
+    <div class="brand">
+      <svg class="icon"><use href="#i-book"/></svg>
+      <span>電子書閱讀器</span>
+    </div>
+    <div class="topbar-tools">
+      <div class="search-box">
+        <svg class="icon"><use href="#i-search"/></svg>
+        <input id="lib-filter" type="search" placeholder="搜尋書名或作者">
+      </div>
+      <select id="lib-sort" title="排序">
+        <option value="lastReadAt">最近閱讀</option>
+        <option value="addedAt">最近加入</option>
+        <option value="title">書名</option>
+        <option value="author">作者</option>
+      </select>
+      <button id="lib-theme" class="icon-btn" title="切換深色 / 淺色"><svg class="icon"><use href="#i-moon"/></svg></button>
+      <button id="open-btn" class="primary-btn"><svg class="icon"><use href="#i-plus"/></svg>開啟電子書</button>
+    </div>
+  </header>
+  <main id="shelf-wrap">
+    <div id="shelf" class="shelf"></div>
+    <div id="empty-state" hidden>
+      <svg class="icon empty-icon"><use href="#i-book"/></svg>
+      <h2>書架是空的</h2>
+      <p>點擊「開啟電子書」或直接把檔案拖曳到視窗中</p>
+      <p class="formats">支援 EPUB · PDF · AZW3 · AZW · MOBI · FB2 · CBZ</p>
+    </div>
+  </main>
+</section>
+
+<!-- ============ 閱讀器 ============ -->
+<section id="reader-view" hidden>
+  <div class="hover-zone top"></div>
+  <header class="reader-bar">
+    <button id="back-btn" class="icon-btn" title="返回書架 (Esc)"><svg class="icon"><use href="#i-back"/></svg></button>
+    <button id="toc-btn" class="icon-btn" title="目錄 (T)"><svg class="icon"><use href="#i-list"/></svg></button>
+    <div id="book-title" class="book-title"></div>
+    <button id="search-btn" class="icon-btn" title="搜尋 (Ctrl+F)"><svg class="icon"><use href="#i-search"/></svg></button>
+    <button id="bookmark-btn" class="icon-btn" title="書籤 (Ctrl+D)"><svg class="icon"><use href="#i-bookmark"/></svg></button>
+    <button id="settings-btn" class="icon-btn" title="閱讀設定"><svg class="icon"><use href="#i-type"/></svg></button>
+    <button id="fullscreen-btn" class="icon-btn" title="全螢幕 (F11)"><svg class="icon"><use href="#i-expand"/></svg></button>
+  </header>
+
+  <div class="reader-body">
+    <aside id="sidebar">
+      <div class="side-head">
+        <img id="side-cover" alt="">
+        <div class="side-meta">
+          <div id="side-title"></div>
+          <div id="side-author"></div>
+        </div>
+      </div>
+      <nav class="tabs" role="tablist">
+        <button data-tab="toc" class="active">目錄</button>
+        <button data-tab="bookmarks">書籤</button>
+        <button data-tab="search">搜尋</button>
+      </nav>
+      <div class="tab-panel" id="panel-toc"><div id="toc"></div></div>
+      <div class="tab-panel" id="panel-bookmarks" hidden><ul id="bookmark-list"></ul></div>
+      <div class="tab-panel" id="panel-search" hidden>
+        <form id="search-form">
+          <input id="search-input" type="search" placeholder="在書中搜尋…">
+        </form>
+        <div id="search-status"></div>
+        <div id="search-results"></div>
+      </div>
+    </aside>
+    <div id="book-container">
+      <div id="loading"><div class="spinner"></div><span>正在開啟…</span></div>
+    </div>
+  </div>
+
+  <footer class="reader-foot">
+    <button id="prev-btn" class="icon-btn" title="上一頁 (←)"><svg class="icon"><use href="#i-left"/></svg></button>
+    <span id="chapter-label" class="foot-label"></span>
+    <input id="progress" type="range" min="0" max="1" step="0.0001" value="0">
+    <span id="progress-label" class="foot-label right"></span>
+    <button id="next-btn" class="icon-btn" title="下一頁 (→)"><svg class="icon"><use href="#i-right"/></svg></button>
+  </footer>
+  <div class="hover-zone bottom"></div>
+
+  <div id="settings-panel" class="popover" hidden>
+    <div class="setting">
+      <label>主題</label>
+      <div class="theme-swatches" id="theme-swatches">
+        <button data-theme="light" title="白色"></button>
+        <button data-theme="sepia" title="米黃"></button>
+        <button data-theme="green" title="護眼綠"></button>
+        <button data-theme="dark" title="深色"></button>
+        <button data-theme="black" title="純黑"></button>
+      </div>
+    </div>
+    <div class="reflow-only">
+      <div class="setting">
+        <label>字體大小 <span id="font-size-val"></span></label>
+        <div class="stepper">
+          <button data-step="font-size" data-delta="-1">A−</button>
+          <input id="font-size" type="range" min="12" max="40" step="1">
+          <button data-step="font-size" data-delta="1">A+</button>
+        </div>
+      </div>
+      <div class="setting">
+        <label>行距 <span id="line-height-val"></span></label>
+        <input id="line-height" type="range" min="1.2" max="2.4" step="0.1">
+      </div>
+      <div class="setting">
+        <label>字型</label>
+        <select id="font-family">
+          <option value="">出版社預設</option>
+          <option value="serif">明體 / 襯線</option>
+          <option value="sans">黑體 / 無襯線</option>
+          <option value="kai">楷體</option>
+        </select>
+      </div>
+      <div class="setting">
+        <label>版面</label>
+        <div class="segmented" id="flow-seg">
+          <button data-value="paginated">分頁</button>
+          <button data-value="scrolled">捲動</button>
+        </div>
+      </div>
+      <div class="setting">
+        <label>欄數</label>
+        <div class="segmented" id="columns-seg">
+          <button data-value="1">單欄</button>
+          <button data-value="2">自動雙欄</button>
+        </div>
+      </div>
+      <div class="setting">
+        <label>版心寬度 <span id="page-width-val"></span></label>
+        <input id="page-width" type="range" min="500" max="1400" step="50">
+      </div>
+      <div class="setting">
+        <label>頁邊距 <span id="gap-val"></span></label>
+        <input id="gap" type="range" min="2" max="16" step="1">
+      </div>
+      <div class="setting check">
+        <label><input id="justify" type="checkbox"> 左右對齊</label>
+      </div>
+    </div>
+    <div class="fixed-only">
+      <div class="setting">
+        <label>縮放</label>
+        <select id="zoom">
+          <option value="fit-page">符合頁面</option>
+          <option value="fit-width">符合寬度</option>
+          <option value="0.75">75%</option>
+          <option value="1">100%</option>
+          <option value="1.25">125%</option>
+          <option value="1.5">150%</option>
+          <option value="2">200%</option>
+          <option value="3">300%</option>
+        </select>
+      </div>
+      <div class="setting check">
+        <label><input id="pdf-spread" type="checkbox"> PDF 雙頁並排（橫向視窗時）</label>
+      </div>
+    </div>
+  </div>
+</section>
+
+<div id="context-menu" class="popover" hidden></div>
+<div id="drop-overlay" hidden><div>放開以開啟電子書</div></div>
+<div id="toast" hidden></div>
+</body>
+</html>

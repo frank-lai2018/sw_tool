@@ -1,0 +1,75 @@
+{
+  "name": "ebook-reader",
+  "productName": "電子書閱讀器",
+  "version": "1.0.0",
+  "description": "Windows 電子書閱讀器，支援 EPUB、PDF、AZW3、AZW、MOBI",
+  "main": "main.js",
+  "author": "Frank Lai",
+  "license": "MIT",
+  "scripts": {
+    "start": "electron .",
+    "dist": "electron-builder --win",
+    "dist:portable": "electron-builder --win portable"
+  },
+  "build": {
+    "appId": "tw.reader.ebook",
+    "productName": "電子書閱讀器",
+    "files": [
+      "main.js",
+      "preload.cjs",
+      "src/**/*"
+    ],
+    "win": {
+      "icon": "build/icon.ico",
+      "executableName": "EbookReader",
+      "target": [
+        "nsis",
+        "portable"
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "artifactName": "EbookReader-Setup-${version}.${ext}"
+    },
+    "fileAssociations": [
+      {
+        "ext": "epub",
+        "name": "EPUB",
+        "description": "EPUB 電子書",
+        "role": "Viewer"
+      },
+      {
+        "ext": "pdf",
+        "name": "PDF",
+        "description": "PDF 文件",
+        "role": "Viewer"
+      },
+      {
+        "ext": "azw3",
+        "name": "AZW3",
+        "description": "Kindle 電子書",
+        "role": "Viewer"
+      },
+      {
+        "ext": "azw",
+        "name": "AZW",
+        "description": "Kindle 電子書",
+        "role": "Viewer"
+      },
+      {
+        "ext": "mobi",
+        "name": "MOBI",
+        "description": "MOBI 電子書",
+        "role": "Viewer"
+      }
+    ],
+    "portable": {
+      "artifactName": "EbookReader-Portable-${version}.${ext}"
+    }
+  },
+  "devDependencies": {
+    "electron": "^45.0.0",
+    "electron-builder": "^26.18.0"
+  }
+}
