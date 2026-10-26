@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'none'; object-src 'none'; base-uri 'none'; frame-src 'none'; form-action 'none'">
+  <title>MD Reader</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <svg class="symbols" xmlns="http://www.w3.org/2000/svg"><defs>
+    <symbol id="i-file" viewBox="0 0 24 24"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9zM14 3v6h6M8 13h8M8 17h6"/></symbol>
+    <symbol id="i-folder" viewBox="0 0 24 24"><path d="M3 7V5a2 2 0 0 1 2-2h5l2 3h7a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2zM3 9h18"/></symbol>
+    <symbol id="i-search" viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 5 5"/></symbol>
+    <symbol id="i-moon" viewBox="0 0 24 24"><path d="M20.8 13A9 9 0 0 1 11 3.2 9 9 0 1 0 20.8 13Z"/></symbol>
+    <symbol id="i-panel" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M9 4v16"/></symbol>
+    <symbol id="i-refresh" viewBox="0 0 24 24"><path d="M20 11a8 8 0 1 0-2 6M20 4v7h-7"/></symbol>
+    <symbol id="i-code" viewBox="0 0 24 24"><path d="m7 7-5 5 5 5m10-10 5 5-5 5m-4-13-2 20"/></symbol>
+    <symbol id="i-print" viewBox="0 0 24 24"><path d="M6 9V3h12v6M6 17H3V9h18v8h-3M6 14h12v7H6zM17 11h1"/></symbol>
+    <symbol id="i-down" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></symbol>
+    <symbol id="i-close" viewBox="0 0 24 24"><path d="m6 6 12 12M6 18 18 6"/></symbol>
+    <symbol id="i-check" viewBox="0 0 24 24"><path d="m5 12 4 4L19 6"/></symbol>
+  </defs></svg>
+  <aside id="sidebar">
+    <div class="brand"><div class="brand-mark">m<span>↓</span></div><div>MD Reader<small>留一點空間，給閱讀。</small></div></div>
+    <button id="open-file" class="open-button"><svg><use href="#i-folder"/></svg>開啟文件 <kbd>Ctrl O</kbd></button>
+    <button id="new-window" class="new-window-button" title="開啟另一個獨立閱讀視窗（Ctrl+N）"><svg><use href="#i-panel"/></svg>新視窗 <kbd>Ctrl N</kbd></button>
+    <div class="sidebar-tabs" role="tablist" aria-label="側邊欄"><button id="toc-tab" class="selected" role="tab" aria-selected="true">文件目錄</button><button id="recent-tab" role="tab" aria-selected="false">最近開啟</button></div>
+    <nav id="toc" aria-label="文件章節"></nav>
+    <div id="recent" hidden></div>
+    <div class="sidebar-bottom"><div class="offline-dot"></div><span>在本機，安心閱讀</span><small>v1.3</small></div>
+  </aside>
+  <div id="sidebar-resizer" role="separator" aria-label="調整目錄寬度" aria-orientation="vertical" aria-controls="sidebar" aria-valuemin="200" aria-valuemax="600" aria-valuenow="248" tabindex="0" title="左右拖曳調整目錄寬度；雙擊恢復預設。也可使用左右方向鍵。"></div>
+  <main>
+    <header class="toolbar">
+      <div class="file-title"><button id="toggle-sidebar" class="icon-button" title="切換側邊欄" aria-label="切換側邊欄"><svg><use href="#i-panel"/></svg></button><span class="separator"></span><svg><use href="#i-file"/></svg><span id="filename">歡迎使用.md</span><span class="file-badge">Markdown</span></div>
+      <div class="tools"><button id="search-button" class="icon-button" title="搜尋（Ctrl+F）" aria-label="搜尋"><svg><use href="#i-search"/></svg></button><button id="reload" class="icon-button" title="重新載入文件（Ctrl+R）" aria-label="重新載入文件"><svg><use href="#i-refresh"/></svg></button><button id="source-button" class="icon-button" title="檢視 Markdown 原始碼" aria-label="檢視原始碼" aria-pressed="false"><svg><use href="#i-code"/></svg></button><span class="separator"></span><button id="theme-button" class="icon-button" title="切換深淺色（Ctrl+Shift+L）" aria-label="切換深淺色"><svg><use href="#i-moon"/></svg></button><button id="print-button" class="icon-button" title="列印或儲存 PDF（Ctrl+P）" aria-label="列印"><svg><use href="#i-print"/></svg></button></div>
+    </header>
+    <div id="search-bar" hidden><svg><use href="#i-search"/></svg><input id="search-input" placeholder="搜尋文件內容…" aria-label="搜尋文件內容" maxlength="500"><span id="search-result"></span><button id="find-prev" class="icon-button" title="上一個（Shift+Enter）" aria-label="上一個"><svg class="rotate"><use href="#i-down"/></svg></button><button id="find-next" class="icon-button" title="下一個（Enter）" aria-label="下一個"><svg><use href="#i-down"/></svg></button><button id="close-search" class="icon-button" title="關閉（Esc）" aria-label="關閉搜尋"><svg><use href="#i-close"/></svg></button></div>
+    <div id="scroll-area" tabindex="0" aria-label="文件閱讀區">
+      <div class="document-top">
+        <div class="document-location"><span class="eyebrow">YOUR READING SPACE</span><span id="document-location">歡迎來到你的閱讀空間</span></div>
+        <div class="reading-controls">
+          <div class="width-controls"><label for="page-width">頁寬</label><input id="page-width" type="range" min="600" max="1600" step="20" value="860" aria-label="頁面寬度" title="調整頁面最大寬度；視窗較窄時會自動縮排"><output id="page-width-value" for="page-width">860 px</output><button id="full-width" aria-pressed="false" title="切換為填滿閱讀區">滿版</button></div>
+          <div class="font-controls"><button id="font-smaller" title="縮小字體" aria-label="縮小字體">A−</button><span id="font-size">17</span><button id="font-larger" title="放大字體" aria-label="放大字體">A＋</button></div>
+        </div>
+      </div>
+      <div id="welcome-banner"><div><span class="welcome-tag">簡單・專注・離線</span><h1>文字，值得好好閱讀。</h1><p>打開一份 Markdown，讓想法清晰展開。</p></div><button id="welcome-open">開啟我的文件 <span>↗</span></button></div>
+      <div id="pagination" hidden aria-label="文件分頁"><span id="pagination-note">大型文件分頁閱讀 · 搜尋全文 · 列印目前頁</span><div><button id="page-prev" aria-label="上一頁">← 上一頁</button><label for="page-number">第</label><input id="page-number" type="number" min="1" value="1" aria-label="跳到頁數"><span id="page-label"></span><button id="page-next" aria-label="下一頁">下一頁 →</button></div></div>
+      <article id="content" class="markdown-body"></article>
+      <pre id="source" hidden tabindex="0"></pre>
+      <div class="document-end"><span></span><svg><use href="#i-check"/></svg><span></span></div>
+    </div>
+    <footer><div><span class="status-dot"></span><span id="document-state">閱讀模式</span><span class="footer-divider">/</span><span id="word-count"></span><span class="footer-divider">/</span><span id="reading-time"></span></div><div><span id="progress">0%</span><div class="progress-track"><div id="progress-fill"></div></div><span>UTF-8 / Big5 自動辨識</span></div></footer>
+  </main>
+  <div id="drop-overlay" hidden><div><svg><use href="#i-folder"/></svg><h2>放開檔案，開始閱讀</h2><p>支援 .md、.markdown、.txt</p></div></div>
+  <div id="toast" role="status" hidden></div>
+  <script src="../node_modules/dompurify/dist/purify.min.js"></script>
+  <script src="../node_modules/@highlightjs/cdn-assets/highlight.min.js"></script>
+  <script type="module" src="renderer.js"></script>
+</body>
+</html>

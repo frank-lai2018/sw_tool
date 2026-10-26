@@ -1,0 +1,52 @@
+{
+  "name": "md-reader",
+  "version": "1.3.0",
+  "description": "一個安靜、清晰的 Windows Markdown 閱讀器",
+  "main": "src/main.cjs",
+  "author": "MD Reader",
+  "license": "MIT",
+  "scripts": {
+    "start": "electron .",
+    "test": "node --test test/*.test.cjs",
+    "test:desktop": "node test/desktop.cjs",
+    "build": "electron-builder --win portable --x64"
+  },
+  "dependencies": {
+    "@highlightjs/cdn-assets": "11.11.1",
+    "dompurify": "3.4.17",
+    "marked": "18.1.1"
+  },
+  "devDependencies": {
+    "electron": "45.0.0",
+    "electron-builder": "26.18.0",
+    "playwright-core": "^1.64.1"
+  },
+  "build": {
+    "appId": "tw.mdreader.desktop",
+    "productName": "MD Reader",
+    "electronLanguages": [
+      "zh-TW",
+      "en-US"
+    ],
+    "artifactName": "MD-Reader-${version}-Windows.${ext}",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "src/**/*",
+      "package.json",
+      "!node_modules/@highlightjs/cdn-assets/es/**/*",
+      "!node_modules/@highlightjs/cdn-assets/languages/**/*",
+      "!node_modules/@highlightjs/cdn-assets/styles/**/*",
+      "!node_modules/**/*.map"
+    ],
+    "win": {
+      "target": "portable",
+      "icon": "src/assets/icon.ico",
+      "signExecutable": false
+    },
+    "portable": {
+      "artifactName": "MD-Reader-${version}-Windows.exe"
+    }
+  }
+}
