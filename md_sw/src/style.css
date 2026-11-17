@@ -20,3 +20,25 @@ main{flex:1;min-width:0;display:flex;flex-direction:column}.toolbar{display:flex
 .sidebar-resizing,.sidebar-resizing *{cursor:col-resize!important;user-select:none!important}
 .sidebar-hidden #sidebar-resizer{display:none}
 @media print{#sidebar-resizer{display:none!important}}
+
+.file-title{margin-right:auto}
+.edit-tools{display:flex;gap:6px;flex-shrink:0}
+.edit-action{
+  display:inline-flex;align-items:center;justify-content:center;gap:5px;
+  padding:6px 9px;white-space:nowrap;border:1px solid var(--border);border-radius:6px;
+  font-size:12px;color:var(--accent);line-height:18px;
+}
+.edit-action svg{width:14px;height:14px}
+.edit-action:not(:disabled):hover,#save-button:not(:disabled){background:var(--accent-soft);border-color:var(--accent)}
+#editor-area{flex:1;min-height:0;display:flex;padding:24px}
+#editor{
+  width:100%;min-width:0;margin:0 auto;padding:20px;resize:none;tab-size:4;
+  background:var(--paper);color:var(--text);border:1px solid var(--border);border-radius:9px;
+  font:calc(var(--font-size) - 2px)/1.7 Consolas,"Cascadia Code",monospace;
+}
+#editor:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+#draft-state{color:var(--accent);font-weight:650;white-space:nowrap}
+.editing #toc,.editing #word-count,.editing #reading-time,.editing .footer-divider,
+.editing #progress,.editing .progress-track{visibility:hidden}
+@media(max-width:880px){.toolbar{gap:6px}.icon-button{padding:5px}.tools .separator{margin:0 2px}.edit-action{padding:5px 6px}}
+@media print{#editor-area{display:none!important}}

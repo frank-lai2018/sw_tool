@@ -82,13 +82,56 @@ const path = require('node:path');
     await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].setSize(780, 600));
     await page.screenshot({ path: path.join(output, 'small-window.png') });
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false);
+
+    // A cancelled reload or close must keep the same draft and leave the file alone.
+    await app.evaluate(({ dialog }) => {
+      globalThis.originalDiscardDialog = dialog.showMessageBoxSync;
+      dialog.showMessageBoxSync = (_, options) => {
+        if (options.title !== '未儲存的變更') throw new Error(`Unexpected dialog: ${options.title}`);
+        return globalThis.discardDraft ? 1 : 0;
+      };
+    });
+    await page.click('#edit-button');
+    assert.match(await page.locator('#editor').inputValue(), /更新後文件/);
+    await page.fill('#editor', '# 草稿標題\n\n**修改內容**');
+    await page.waitForSelector('#draft-state');
+    await page.click('#edit-button');
+    await page.waitForSelector('#content strong');
+    assert.equal(await page.locator('#content h1').textContent(), '草稿標題');
+    assert.match(await fs.readFile(fixture, 'utf8'), /更新後文件/);
+    assert.equal(await page.evaluate(() => window.reader.reload()), false);
+    await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].close());
+    assert.equal(page.isClosed(), false);
+    await page.click('#edit-button');
+    assert.equal(await page.locator('#editor').inputValue(), '# 草稿標題\n\n**修改內容**');
+    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false);
+    await app.evaluate(({ Menu }) => {
+      const save = Menu.getApplicationMenu().items[0].submenu.items.find(item => item.label === '儲存');
+      if (save.accelerator !== 'CmdOrCtrl+S') throw new Error('Missing Ctrl+S shortcut');
+      save.click();
+    });
+    await page.waitForSelector('#draft-state', { state: 'hidden' });
+    assert.equal(await fs.readFile(fixture, 'utf8'), '# 草稿標題\n\n**修改內容**');
+
+    // External edits must win over a stale save, while the draft remains editable.
+    await fs.writeFile(fixture, '# 外部更新');
+    await page.fill('#editor', '# 另一份草稿');
+    await page.click('#save-button');
+    await page.waitForFunction(() => document.querySelector('#toast').textContent.includes('磁碟上的檔案已變更'));
+    assert.equal(await fs.readFile(fixture, 'utf8'), '# 外部更新');
+    assert.equal(await page.locator('#editor').inputValue(), '# 另一份草稿');
+    await app.evaluate(() => { globalThis.discardDraft = true; });
+    await page.click('#reload');
+    await page.waitForFunction(() => document.querySelector('#content h1')?.textContent === '外部更新');
+    await app.evaluate(({ dialog }) => { dialog.showMessageBoxSync = globalThis.originalDiscardDialog; });
     assert.deepEqual(errors, []);
-    console.log(`PASS: ${development ? 'development' : 'packaged'} desktop app, Chinese rendering, syntax highlighting, tasks, themes, font size, TOC, local images, HTML sanitizing, offline behavior, source view, search, recent files, reload, error recovery, PDF rendering, compact layout.`);
+    console.log(`PASS: ${development ? 'development' : 'packaged'} desktop app, reading, search, printing, editing, preview, saving, discarded edits and external changes.`);
   } catch (error) {
     const page = app.windows()[0];
     if (page) { console.error(await page.evaluate(() => ({ file: document.querySelector('#filename')?.textContent, search: document.querySelector('#search-result')?.textContent }))); await page.screenshot({ path: path.join(output, 'failure.png') }); }
     throw error;
   } finally {
+    await app.evaluate(({ dialog }) => { if (globalThis.originalDiscardDialog) dialog.showMessageBoxSync = () => 1; }).catch(() => {});
     await app.close();
     await fs.rm(temp, { recursive: true, force: true });
   }

@@ -1,10 +1,11 @@
 const { app, BrowserWindow, ipcMain, dialog, shell, Menu } = require('electron');
 const path = require('node:path');
 const fs = require('node:fs');
-const { readDocument, readLocalImage, isDocument } = require('./files.cjs');
+const { readDocument, saveDocument, readLocalImage, isDocument } = require('./files.cjs');
 const { getExecutablePath, setWindowsIntegration } = require('./windows-integration.cjs');
 
 const windows = new Map();
+const savingPaths = new Set();
 let settings = { theme: 'light', fontSize: 17, pageWidth: 860, sidebarWidth: 248, recent: [], lastFile: null };
 const pendingFile = process.argv.slice(app.isPackaged ? 1 : 2).find(isDocument);
 let integrationBusy = false;
@@ -37,11 +38,16 @@ function installMenu() {
     { label: '檔案', submenu: [
       { label: '新視窗', accelerator: 'CmdOrCtrl+N', click: () => createWindow() },
       { label: '開啟…', accelerator: 'CmdOrCtrl+O', click: () => focusedWindow()?.chooseFile() },
+      { label: '儲存', accelerator: 'CmdOrCtrl+S', click: () => focusedWindow()?.send('save-requested') },
       { label: '重新載入文件', accelerator: 'CmdOrCtrl+R', click: () => focusedWindow()?.reload() },
-      { label: '列印 / 儲存 PDF…', accelerator: 'CmdOrCtrl+P', click: () => focusedWindow()?.print() },
+      { label: '列印 / 儲存 PDF…', accelerator: 'CmdOrCtrl+P', click: () => focusedWindow()?.send('print-requested') },
       { type: 'separator' }, { role: 'close', label: '關閉視窗' }, { role: 'quit', label: '結束所有視窗' }
     ] },
-    { label: '編輯', submenu: [{ role: 'copy', label: '複製' }, { role: 'selectAll', label: '全選' }, { label: '搜尋', accelerator: 'CmdOrCtrl+F', click: () => focusedWindow()?.send('focus-search') }] },
+    { label: '編輯', submenu: [
+      { role: 'undo', label: '復原' }, { role: 'redo', label: '重做' }, { type: 'separator' },
+      { role: 'cut', label: '剪下' }, { role: 'copy', label: '複製' }, { role: 'paste', label: '貼上' }, { role: 'selectAll', label: '全選' },
+      { label: '搜尋', accelerator: 'CmdOrCtrl+F', click: () => focusedWindow()?.send('focus-search') }
+    ] },
     { label: '檢視', submenu: [{ role: 'togglefullscreen', label: '全螢幕' }, { label: '切換主題', accelerator: 'CmdOrCtrl+Shift+L', click: () => focusedWindow()?.send('toggle-theme') }] },
     { label: 'Windows 整合', submenu: [
       { label: '加入檔案右鍵選單', click: () => configureIntegration(true) },
@@ -64,21 +70,38 @@ async function configureIntegration(enabled) {
 }
 function createWindow(file) {
   let activeDocument = null;
+  let documentId = 0;
+  let dirty = false;
+  let busy = false;
   let initialized = false;
   let pagination = { page: 1, total: 1 };
   const startupFile = file || settings.lastFile;
   const win = new BrowserWindow({ width: 1260, height: 850, minWidth: 760, minHeight: 540, backgroundColor: '#f7f8fa', autoHideMenuBar: true, title: 'MD Reader', icon: path.join(__dirname, 'assets', 'icon.png'), webPreferences: { preload: path.join(__dirname, 'preload.cjs'), contextIsolation: true, nodeIntegration: false, sandbox: true } });
   const send = (channel, data) => { if (!win.isDestroyed()) win.webContents.send(channel, data); };
+  function confirmDiscard() {
+    return !dirty || dialog.showMessageBoxSync(win, {
+      type: 'warning', title: '未儲存的變更', message: '這份文件有未儲存的變更。',
+      buttons: ['繼續編輯', '捨棄變更'], defaultId: 0, cancelId: 0, noLink: true
+    }) === 1;
+  }
+  async function runFileAction(action) {
+    if (busy || win.isDestroyed()) return false;
+    busy = true;
+    try { return await action(); }
+    finally { busy = false; }
+  }
   async function openDocument(file) {
     try {
       const document = await readDocument(file);
-      if (win.isDestroyed()) return false;
-      activeDocument = document.path;
+      if (win.isDestroyed() || !confirmDiscard()) return false;
+      const { text, ...metadata } = document;
+      activeDocument = metadata;
+      dirty = false;
       settings.lastFile = document.path;
       settings.recent = [document.path, ...settings.recent.filter(item => item !== document.path)].slice(0, 12);
       saveSettings();
       win.setTitle(`${document.name} — MD Reader`);
-      send('document', document);
+      send('document', { id: ++documentId, path: document.path, name: document.name, text, size: document.size });
       send('settings', publicSettings());
       return true;
     } catch (error) {
@@ -86,24 +109,45 @@ function createWindow(file) {
       send('notice', message); return false;
     }
   }
-  async function chooseFile() {
+  const openFile = file => typeof file === 'string' && runFileAction(() => openDocument(file));
+  const chooseFile = () => runFileAction(async () => {
     const result = await dialog.showOpenDialog(win, { title: '開啟 Markdown 文件', filters: [{ name: 'Markdown 與文字檔', extensions: ['md', 'markdown', 'mdown', 'mkd', 'txt'] }], properties: ['openFile'] });
     if (!result.canceled && !win.isDestroyed()) return openDocument(result.filePaths[0]);
     return false;
-  }
+  });
+  const save = (id, text) => runFileAction(async () => {
+    if (!activeDocument || id !== documentId || typeof text !== 'string') return false;
+    const file = activeDocument.path;
+    const key = process.platform === 'win32' ? file.toLowerCase() : file;
+    if (savingPaths.has(key)) { send('notice', '另一個視窗正在儲存這份文件，請稍後再試。'); return false; }
+    savingPaths.add(key);
+    try {
+      if (activeDocument.encoding === 'big5') {
+        const { response } = await dialog.showMessageBox(win, {
+          type: 'warning', title: '轉換檔案編碼', message: '儲存時會將 Big5 文件轉為 UTF-8。',
+          buttons: ['取消', '以 UTF-8 儲存'], defaultId: 0, cancelId: 0, noLink: true
+        });
+        if (response !== 1) return false;
+      }
+      Object.assign(activeDocument, await saveDocument(activeDocument, text));
+      return true;
+    } catch (error) {
+      send('notice', error.code ? '無法儲存文件，請確認檔案仍存在且有寫入權限。' : error.message);
+      return false;
+    } finally { savingPaths.delete(key); }
+  });
   const context = {
-    send, chooseFile,
+    send, chooseFile, openFile, save,
     initialize: () => {
       if (!initialized) {
         initialized = true;
-        if (startupFile) setTimeout(() => { if (!win.isDestroyed()) openDocument(startupFile); }, 100);
+        if (startupFile) openFile(startupFile);
       }
       return publicSettings();
     },
-    openFile: file => typeof file === 'string' && openDocument(file),
     newWindow: () => { createWindow(); return true; },
-    reload: () => activeDocument && openDocument(activeDocument),
-    image: source => activeDocument ? readLocalImage(activeDocument, source).catch(() => null) : null,
+    reload: () => activeDocument && openFile(activeDocument.path),
+    image: source => activeDocument ? readLocalImage(activeDocument.path, source).catch(() => null) : null,
     preferences: prefs => {
       if (prefs.theme === 'light' || prefs.theme === 'dark') settings.theme = prefs.theme;
       if (Number.isFinite(prefs.fontSize)) settings.fontSize = Math.max(13, Math.min(24, prefs.fontSize));
@@ -115,8 +159,8 @@ function createWindow(file) {
       if (typeof href !== 'string' || !activeDocument) return;
       if (/^https?:\/\//i.test(href) || /^mailto:/i.test(href)) return shell.openExternal(href);
       if (/^[a-z][a-z\d+.-]*:/i.test(href) || /^[\\/]{2}/.test(href)) return;
-      const target = path.resolve(path.dirname(activeDocument), decodeURIComponent(href.split(/[?#]/)[0]));
-      if (isDocument(target)) return openDocument(target);
+      const target = path.resolve(path.dirname(activeDocument.path), decodeURIComponent(href.split(/[?#]/)[0]));
+      if (isDocument(target)) return openFile(target);
     },
     pagination: state => { pagination = { page: Math.max(1, Number(state.page) || 1), total: Math.max(1, Number(state.total) || 1) }; },
     print: async () => {
@@ -128,7 +172,9 @@ function createWindow(file) {
     }
   };
   const id = win.webContents.id;
+  context.setDirty = (document, value) => { if (document === documentId) dirty = value === true; };
   windows.set(id, context);
+  win.on('close', event => { if (busy || !confirmDiscard()) event.preventDefault(); });
   win.on('closed', () => windows.delete(id));
   win.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
   win.webContents.on('will-navigate', event => event.preventDefault());
@@ -138,6 +184,8 @@ function createWindow(file) {
 for (const [channel, method] of Object.entries({
   'initialize': 'initialize', 'choose-file': 'chooseFile', 'open-file': 'openFile',
   'new-window': 'newWindow', 'reload-document': 'reload', 'local-image': 'image',
+  'save-document': 'save',
   'save-preferences': 'preferences', 'open-link': 'openLink', 'print': 'print', 'pagination': 'pagination'
 })) ipcMain.handle(channel, (event, ...args) => windows.get(event.sender.id)?.[method](...args));
+ipcMain.on('document-dirty', (event, id, dirty) => windows.get(event.sender.id)?.setDirty(id, dirty));
 app.on('window-all-closed', () => app.quit());

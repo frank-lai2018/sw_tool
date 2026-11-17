@@ -4,6 +4,11 @@ import { LARGE_DOCUMENT_CHARACTERS, splitSource } from './document-model.mjs';
 const $ = id => document.getElementById(id);
 const api = window.reader;
 let current = null;
+const editor = $('editor');
+let savedText = null;
+let editing = false;
+let dirty = false;
+let saving = false;
 let prefs = { theme: 'light', fontSize: 17, pageWidth: 860, sidebarWidth: 248, recent: [] };
 let showSource = false;
 let renderVersion = 0;
@@ -80,6 +85,75 @@ console.log(reading.message);
 `;
 
 function notice(message) { $('toast').textContent = message; $('toast').hidden = false; clearTimeout(toastTimer); toastTimer = setTimeout(() => { $('toast').hidden = true; }, 4200); }
+function updateEditorControls() {
+  $('edit-button').disabled = !current?.path;
+  $('edit-button').setAttribute('aria-expanded', String(editing));
+  $('edit-button').querySelector('span').textContent = editing ? '預覽' : '編輯';
+  $('save-button').hidden = !editing && !dirty;
+  $('save-button').disabled = !dirty || saving;
+  $('save-button').textContent = saving ? '儲存中…' : '儲存';
+  $('draft-state').hidden = !dirty;
+  $('source-button').disabled = editing;
+  editor.readOnly = saving;
+}
+function updateDirty() {
+  const changed = editor.value !== savedText;
+  if (changed === dirty) return;
+  dirty = changed;
+  api.setDirty(current.id, dirty);
+  updateEditorControls();
+}
+function showEditor(show) {
+  editing = show;
+  document.body.classList.toggle('editing', editing);
+  $('editor-area').hidden = !editing;
+  $('scroll-area').hidden = editing;
+  updateEditorControls();
+}
+function loadDocument(doc) {
+  editor.value = '';
+  savedText = null;
+  dirty = false;
+  current = doc;
+  showEditor(false);
+  return renderDocument(doc);
+}
+async function previewDraft() {
+  showEditor(false);
+  await renderDocument({ ...current, text: editor.value });
+}
+async function toggleEditor() {
+  if (!current?.path) return;
+  if (editing) {
+    const render = previewDraft();
+    $('scroll-area').focus();
+    await render;
+  } else {
+    if (savedText === null) {
+      editor.value = current.text;
+      savedText = editor.value;
+    }
+    if (!$('search-bar').hidden) closeSearch();
+    showEditor(true);
+    $('document-state').textContent = '編輯模式';
+    editor.focus();
+  }
+}
+async function saveDraft() {
+  if (!dirty || saving) return;
+  const { id } = current;
+  const text = editor.value;
+  saving = true;
+  updateEditorControls();
+  try {
+    if (await api.save(id, text) && current.id === id) {
+      savedText = text;
+      updateDirty();
+      notice('已儲存文件。');
+    }
+  } catch { notice('無法儲存文件，請再試一次。'); }
+  finally { saving = false; updateEditorControls(); }
+}
 function applyPreferences(settings) {
   prefs = { ...prefs, ...settings };
   document.body.classList.toggle('dark', prefs.theme === 'dark');
@@ -261,7 +335,8 @@ async function renderDocument(documentData, demo = false) {
   $('filename').textContent = documentData.name; $('filename').title = documentData.path || '範例文件';
   $('document-location').textContent = demo ? '歡迎來到你的閱讀空間' : documentData.path;
   $('document-location').title = documentData.path || '';
-  $('document-state').textContent = '讀取中…'; $('word-count').textContent = ''; $('reading-time').textContent = '';
+  if (!editing) $('document-state').textContent = '讀取中…';
+  $('word-count').textContent = ''; $('reading-time').textContent = '';
   let cjk, latin;
   try {
     if (documentData.text.length > LARGE_DOCUMENT_CHARACTERS) {
@@ -275,10 +350,11 @@ async function renderDocument(documentData, demo = false) {
     $('word-count').textContent = `${(cjk + latin).toLocaleString()} 字 / 詞`;
     $('reading-time').textContent = `約 ${Math.max(1, Math.ceil(cjk / 400 + latin / 220))} 分鐘`;
     await renderCurrentPage();
-    if (version === renderVersion && $('search-input').value) await runSearch();
-  } catch (error) { if (version === renderVersion) { $('document-state').textContent = '讀取失敗'; notice(error.message); } }
+    if (version === renderVersion && !editing && $('search-input').value) await runSearch();
+  } catch (error) { if (version === renderVersion && !editing) { $('document-state').textContent = '讀取失敗'; notice(error.message); } }
 }
 async function renderCurrentPage({ search = true } = {}) {
+  if (editing) return;
   const version = ++paintVersion;
   clearSearchHighlights();
   $('content').hidden = showSource; $('source').hidden = !showSource;
@@ -429,7 +505,15 @@ async function stepSearch(forward) {
   }
   if (searchRanges.length) { searchIndex = forward ? 0 : searchRanges.length - 1; highlightSearch(); }
 }
-function showSearch() { $('search-bar').hidden = false; $('search-input').focus(); $('search-input').select(); }
+async function showSearch() {
+  if (editing) await previewDraft();
+  if (editing) return;
+  $('search-bar').hidden = false; $('search-input').focus(); $('search-input').select();
+}
+async function printDocument() {
+  if (editing) await previewDraft();
+  if (!editing) return api.print();
+}
 function closeSearch() { clearTimeout(searchTimer); $('search-bar').hidden = true; $('search-input').value = ''; runSearch(); $('scroll-area').focus(); }
 function setTab(recent) {
   $('toc').hidden = recent; $('recent').hidden = !recent;
@@ -443,19 +527,22 @@ $('page-width').oninput = event => changeWidth(Number(event.target.value));
 $('full-width').onclick = () => changeWidth(prefs.pageWidth === 0 ? Number($('page-width').value) : 0);
 $('toggle-sidebar').onclick = () => document.body.classList.toggle('sidebar-hidden');
 $('source-button').onclick = toggleSource;
+$('edit-button').onclick = toggleEditor;
+$('save-button').onclick = saveDraft;
+editor.oninput = updateDirty;
 $('page-prev').onclick = () => setPage(pageForMode() - 1);
 $('page-next').onclick = () => setPage(pageForMode() + 1);
 $('page-number').onchange = event => setPage(Number(event.target.value) - 1);
 $('page-number').onkeydown = event => { if (event.key === 'Enter') { event.preventDefault(); setPage(Number(event.target.value) - 1); } };
 $('reload').onclick = () => current.path ? api.reload() : notice('目前顯示範例文件，請先開啟你的 Markdown 檔案。');
-$('print-button').onclick = () => api.print();
+$('print-button').onclick = printDocument;
 $('toc-tab').onclick = () => setTab(false); $('recent-tab').onclick = () => setTab(true);
 $('search-button').onclick = showSearch; $('close-search').onclick = closeSearch;
 $('find-prev').onclick = () => stepSearch(false);
 $('find-next').onclick = () => stepSearch(true);
 $('search-input').oninput = () => { clearTimeout(searchTimer); searchTimer = setTimeout(() => { searchTimer = null; runSearch(); }, 180); };
 $('search-input').onkeydown = event => { if (event.key === 'Enter') { event.preventDefault(); stepSearch(!event.shiftKey); } };
-document.addEventListener('keydown', event => { if (event.key === 'Escape') closeSearch(); });
+document.addEventListener('keydown', event => { if (event.key === 'Escape' && !$('search-bar').hidden) closeSearch(); });
 $('content').onclick = event => {
   const link = event.target.closest('a'); if (!link) return;
   event.preventDefault(); const href = link.getAttribute('href'); if (!href) return;
@@ -471,6 +558,7 @@ document.addEventListener('dragenter', event => { event.preventDefault(); if (ev
 document.addEventListener('dragover', event => { event.preventDefault(); event.dataTransfer.dropEffect = 'copy'; });
 document.addEventListener('dragleave', event => { event.preventDefault(); if (--dragDepth <= 0) { dragDepth = 0; $('drop-overlay').hidden = true; } });
 document.addEventListener('drop', event => { event.preventDefault(); dragDepth = 0; $('drop-overlay').hidden = true; const file = event.dataTransfer.files[0]; if (file) api.openFile(api.droppedPath(file)); });
-api.onDocument(doc => renderDocument(doc)); api.onSettings(applyPreferences); api.onNotice(notice); api.onSearch(showSearch); api.onTheme(changeTheme);
+api.onDocument(loadDocument); api.onSettings(applyPreferences); api.onNotice(notice); api.onSearch(showSearch); api.onTheme(changeTheme);
+api.onSave(saveDraft); api.onPrint(printDocument);
 await renderDocument({ name: '歡迎使用.md', text: welcome, path: null }, true);
 applyPreferences(await api.initialize());

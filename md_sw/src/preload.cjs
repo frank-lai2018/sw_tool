@@ -7,6 +7,8 @@ contextBridge.exposeInMainWorld('reader', {
   openFile: file => ipcRenderer.invoke('open-file', file),
   droppedPath: file => webUtils.getPathForFile(file),
   reload: () => ipcRenderer.invoke('reload-document'),
+  save: (id, text) => ipcRenderer.invoke('save-document', id, text),
+  setDirty: (id, dirty) => ipcRenderer.send('document-dirty', id, dirty),
   image: source => ipcRenderer.invoke('local-image', source),
   preferences: prefs => ipcRenderer.invoke('save-preferences', prefs),
   openLink: href => ipcRenderer.invoke('open-link', href),
@@ -16,5 +18,7 @@ contextBridge.exposeInMainWorld('reader', {
   onSettings: callback => subscribe('settings', callback),
   onNotice: callback => subscribe('notice', callback),
   onSearch: callback => subscribe('focus-search', callback),
+  onSave: callback => subscribe('save-requested', callback),
+  onPrint: callback => subscribe('print-requested', callback),
   onTheme: callback => subscribe('toggle-theme', callback)
 });

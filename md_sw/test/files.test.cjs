@@ -3,7 +3,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs/promises');
 const os = require('node:os');
 const path = require('node:path');
-const { isDocument, decodeDocument, readDocument, readLocalImage } = require('../src/files.cjs');
+const { isDocument, decodeDocument, readDocument, saveDocument, readLocalImage } = require('../src/files.cjs');
 
 test('accepts document formats, rejects executable and invalid paths', () => {
   assert.equal(isDocument('繁體中文.MD'), true);
@@ -41,4 +41,15 @@ test('rejects documents larger than 20 MB', async t => {
   const handle = await fs.open(file, 'w');
   await handle.truncate(20 * 1024 * 1024 + 1); await handle.close();
   await assert.rejects(readDocument(file), /20 MB/);
+});
+test('saves UTF-16 documents with their byte order and line endings intact', async t => {
+  const temp = await fs.mkdtemp(path.join(os.tmpdir(), 'md-reader-save-'));
+  t.after(() => fs.rm(temp, { recursive: true, force: true }));
+  const file = path.join(temp, 'note.md');
+  await fs.writeFile(file, Buffer.from('\uFEFF# 中文\r\n\r\n原文', 'utf16le').swap16());
+  const document = await readDocument(file);
+  await saveDocument(document, '# 編輯\n\n新內容');
+  assert.deepEqual(await fs.readFile(file), Buffer.from('\uFEFF# 編輯\r\n\r\n新內容', 'utf16le').swap16());
+  await assert.rejects(saveDocument(document, '舊草稿'), /磁碟上的檔案已變更/);
+  assert.deepEqual(await fs.readdir(temp), ['note.md']);
 });
