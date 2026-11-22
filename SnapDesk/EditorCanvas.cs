@@ -63,7 +63,13 @@ internal sealed class EditorCanvas : Control
     {
         bitmap = image; DoubleBuffered = true; BackColor = Color.White; Cursor = Cursors.Cross; TabStop = true; SetZoom(1);
     }
-    public void SetZoom(float value) { zoom = Math.Clamp(value, .1f, 4); Size = new Size((int)Math.Ceiling(bitmap.Width * zoom), (int)Math.Ceiling(bitmap.Height * zoom)); Invalidate(); }
+    public void SetZoom(float value)
+    {
+        // Keep very tall screenshots within native Windows control-size limits at every zoom level.
+        float maximum=Math.Min(4,30000f/Math.Max(bitmap.Width,bitmap.Height));
+        zoom=Math.Clamp(value,Math.Min(.1f,maximum),maximum);
+        Size=new Size((int)Math.Ceiling(bitmap.Width*zoom),(int)Math.Ceiling(bitmap.Height*zoom));Invalidate();
+    }
     PointF ImagePoint(Point p) => new(Math.Clamp(p.X / zoom, 0, bitmap.Width - 1), Math.Clamp(p.Y / zoom, 0, bitmap.Height - 1));
     State CaptureState() => new(bitmap, objects, sequence);
     void Snapshot() => PushUndo(CaptureState());

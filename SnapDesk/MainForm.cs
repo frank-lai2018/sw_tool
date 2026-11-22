@@ -13,6 +13,7 @@ internal sealed class Preferences
     public bool MinimizeToTray { get; set; } = true;
     public int FixedWidth { get; set; } = 800;
     public int FixedHeight { get; set; } = 600;
+    public int ScrollMaxSteps { get; set; } = ScrollCapture.DefaultMaxSteps;
     public static readonly string SettingsPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "SnapDesk", "settings.json");
     public static Preferences Load() { try { return JsonSerializer.Deserialize<Preferences>(File.ReadAllText(SettingsPath)) ?? new(); } catch { return new(); } }
     public void Save() { Directory.CreateDirectory(Path.GetDirectoryName(SettingsPath)!); File.WriteAllText(SettingsPath, JsonSerializer.Serialize(this, new JsonSerializerOptions { WriteIndented = true })); }
@@ -75,7 +76,7 @@ internal sealed class MainForm : Form
         var accessories = new ToolStripMenuItem("螢幕工具");
         foreach (var pair in new[] { ("螢幕取色器", AccessoryMode.Color), ("放大鏡", AccessoryMode.Magnifier), ("像素尺", AccessoryMode.Ruler), ("十字座標線", AccessoryMode.Crosshair), ("量角器", AccessoryMode.Protractor), ("螢幕白板", AccessoryMode.Whiteboard) })
         { var mode = pair.Item2; accessories.DropDownItems.Add(MenuItem(pair.Item1, () => LaunchAccessory(mode))); }
-        menu.Items.AddRange([file, edit, capture, accessories, MenuItem("錄影",OpenRecorder), MenuItem("設定", Settings), MenuItem("關於", () => MessageBox.Show(this, "SnapDesk 0.1.8\nWindows 截圖、圖片編輯與螢幕錄影\n\nCtrl+Shift+1：全螢幕截圖\nCtrl+Shift+2：範圍截圖\nCtrl+Shift+3：選取視窗截圖\n錄影時 Ctrl+Shift+F9：暫停／繼續\nCtrl+Shift+F10：停止並儲存 MP4\n\n目前未提供雲端上傳與 OCR。", "關於 SnapDesk"))]);
+        menu.Items.AddRange([file, edit, capture, accessories, MenuItem("錄影",OpenRecorder), MenuItem("設定", Settings), MenuItem("關於", () => MessageBox.Show(this, "SnapDesk 0.1.9\nWindows 截圖、圖片編輯與螢幕錄影\n\nCtrl+Shift+1：全螢幕截圖\nCtrl+Shift+2：範圍截圖\nCtrl+Shift+3：選取視窗截圖\n錄影時 Ctrl+Shift+F9：暫停／繼續\nCtrl+Shift+F10：停止並儲存 MP4\n\n目前未提供雲端上傳與 OCR。", "關於 SnapDesk"))]);
         var top = new ToolStrip { AccessibleName = "截圖與檔案", Font = Font, GripStyle = ToolStripGripStyle.Hidden, BackColor = Color.FromArgb(232, 241, 247), Padding = new Padding(12, 9, 12, 9) };
 
         var newCapture = new ToolStripDropDownButton("＋  新增截圖"); foreach (var pair in CaptureLabels()) { var mode = pair.Item2; newCapture.DropDownItems.Add(pair.Item1, null, async (_, _) => await CaptureAsync(mode)); }
@@ -224,7 +225,11 @@ internal sealed class MainForm : Form
         if (busy || recording?.IsRecording==true) return;
         if (mode == CaptureMode.Repeat && lastCapture.IsEmpty) { status.Text = "請先擷取一次範圍。"; Restore(); return; }
         if (mode == CaptureMode.Fixed) { if (Dialogs.Dimensions(this, "固定截圖範圍", new Size(prefs.FixedWidth, prefs.FixedHeight)) is not { } size) return; prefs.FixedWidth = size.Width; prefs.FixedHeight = size.Height; Safe(prefs.Save); }
-        if (mode == CaptureMode.Scrolling && MessageBox.Show(this, "選取可捲動內容的內部區域，避開固定頁首、工具列與捲軸。\n程式會自動向下捲動並嘗試拼接，最多 20 次。\n\n按住 Esc 可中止並保留目前結果。動畫、固定元素與部分應用程式可能無法正確拼接。", "實驗性捲動截圖", MessageBoxButtons.OKCancel) != DialogResult.OK) return;
+        if(mode==CaptureMode.Scrolling)
+        {
+            if(ScrollCaptureSetup.Choose(this,prefs.ScrollMaxSteps) is not { } steps)return;
+            prefs.ScrollMaxSteps=steps;Safe(prefs.Save);
+        }
         busy = true; Bitmap? result = null; string? scrollNotice = null;
         try
         {
@@ -239,7 +244,11 @@ internal sealed class MainForm : Form
                 if (overlay.ShowDialog() == DialogResult.OK) { result = overlay.Result; lastCapture = overlay.Selection; }
             }
             if (result != null && mode == CaptureMode.Scrolling)
-            { result.Dispose(); result = null; await Task.Delay(250); result = await ScrollCapture.CaptureAsync(lastCapture, text => scrollNotice = text); }
+            {
+                result.Dispose(); result = null; await Task.Delay(250);
+                using var progress=new ScrollCaptureProgress(lastCapture);progress.ShowForCapture();
+                result=await ScrollCapture.CaptureAsync(lastCapture,text=>scrollNotice=text,prefs.ScrollMaxSteps,progress.Report,progress.Token);
+            }
             if (result != null)
             {
                 var captured = result; result = null; Restore(); AddDocument(captured, $"截圖 {++docIndex}");

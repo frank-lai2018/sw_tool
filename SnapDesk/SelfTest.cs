@@ -119,6 +119,7 @@ internal static class SelfTest
                 Check(tabs.TryCloseDocuments([home, middle], _ => true) && tabs.TabCount == 1 && tabs.SelectedTab == home && !home.IsDisposed, "Closing all images returns to protected home tab");
             }
             AnnotationTests.Run(Check, TestArtifacts.Directory);
+            ScrollCaptureTests.Run(Check);
             ShapeTests.Run(Check, TestArtifacts.Directory);
             RecordingTests.CheckOptions(Check);
             int copyInvocations = 0;
