@@ -34,13 +34,18 @@ test('reads a document and confines image access to its own folder', async t => 
   assert.equal(await readLocalImage(doc, '//server/share.png'), null);
   await assert.rejects(readDocument(path.join(temp, 'private.png')), /Markdown/);
 });
-test('rejects documents larger than 20 MB', async t => {
+test('accepts documents above the old 20 MiB limit and rejects above 100 MiB', async t => {
   const temp = await fs.mkdtemp(path.join(os.tmpdir(), 'md-reader-size-'));
   t.after(() => fs.rm(temp, { recursive: true, force: true }));
   const file = path.join(temp, 'large.md');
   const handle = await fs.open(file, 'w');
   await handle.truncate(20 * 1024 * 1024 + 1); await handle.close();
-  await assert.rejects(readDocument(file), /20 MB/);
+  const document = await readDocument(file);
+  assert.equal(document.size, 20 * 1024 * 1024 + 1);
+  await saveDocument(document, '# 可儲存');
+  assert.equal((await readDocument(file)).text, '# 可儲存');
+  await fs.truncate(file, 100 * 1024 * 1024 + 1);
+  await assert.rejects(readDocument(file), /100 MiB/);
 });
 test('saves UTF-16 documents with their byte order and line endings intact', async t => {
   const temp = await fs.mkdtemp(path.join(os.tmpdir(), 'md-reader-save-'));

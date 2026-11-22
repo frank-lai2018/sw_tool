@@ -29,7 +29,7 @@
     <div class="sidebar-tabs" role="tablist" aria-label="側邊欄"><button id="toc-tab" class="selected" role="tab" aria-selected="true">文件目錄</button><button id="recent-tab" role="tab" aria-selected="false">最近開啟</button></div>
     <nav id="toc" aria-label="文件章節"></nav>
     <div id="recent" hidden></div>
-    <div class="sidebar-bottom"><div class="offline-dot"></div><span>在本機，安心閱讀</span><small>v1.3</small></div>
+    <div class="sidebar-bottom"><div class="offline-dot"></div><span>在本機，安心閱讀</span><small>v1.3.1</small></div>
   </aside>
   <div id="sidebar-resizer" role="separator" aria-label="調整目錄寬度" aria-orientation="vertical" aria-controls="sidebar" aria-valuemin="200" aria-valuemax="600" aria-valuenow="248" tabindex="0" title="左右拖曳調整目錄寬度；雙擊恢復預設。也可使用左右方向鍵。"></div>
   <main>
@@ -52,6 +52,7 @@
       </div>
       <div id="welcome-banner"><div><span class="welcome-tag">簡單・專注・離線</span><h1>文字，值得好好閱讀。</h1><p>打開一份 Markdown，讓想法清晰展開。</p></div><button id="welcome-open">開啟我的文件 <span>↗</span></button></div>
       <div id="pagination" hidden aria-label="文件分頁"><span id="pagination-note">大型文件分頁閱讀 · 搜尋全文 · 列印目前頁</span><div><button id="page-prev" aria-label="上一頁">← 上一頁</button><label for="page-number">第</label><input id="page-number" type="number" min="1" value="1" aria-label="跳到頁數"><span id="page-label"></span><button id="page-next" aria-label="下一頁">下一頁 →</button></div></div>
+      <div id="open-error" role="alert" hidden><strong>無法開啟文件</strong><p id="open-error-path"></p><p id="open-error-message"></p></div>
       <article id="content" class="markdown-body"></article>
       <pre id="source" hidden tabindex="0"></pre>
       <div class="document-end"><span></span><svg><use href="#i-check"/></svg><span></span></div>

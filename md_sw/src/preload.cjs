@@ -17,6 +17,7 @@ contextBridge.exposeInMainWorld('reader', {
   onDocument: callback => subscribe('document', callback),
   onSettings: callback => subscribe('settings', callback),
   onNotice: callback => subscribe('notice', callback),
+  onOpenError: callback => subscribe('open-error', callback),
   onSearch: callback => subscribe('focus-search', callback),
   onSave: callback => subscribe('save-requested', callback),
   onPrint: callback => subscribe('print-requested', callback),

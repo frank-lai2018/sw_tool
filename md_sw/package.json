@@ -1,6 +1,6 @@
 {
   "name": "md-reader",
-  "version": "1.3.0",
+  "version": "1.3.1",
   "description": "一個安靜、清晰的 Windows Markdown 閱讀器",
   "main": "src/main.cjs",
   "author": "MD Reader",

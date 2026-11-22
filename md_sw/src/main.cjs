@@ -106,7 +106,7 @@ function createWindow(file) {
       return true;
     } catch (error) {
       const message = error.code === 'ENOENT' ? '找不到這份文件，檔案可能已移動或刪除。' : error.code === 'EACCES' || error.code === 'EPERM' ? '無法存取文件，請確認檔案的讀取權限。' : error.message;
-      send('notice', message); return false;
+      send('open-error', { path: file, name: path.basename(file), message }); return false;
     }
   }
   const openFile = file => typeof file === 'string' && runFileAction(() => openDocument(file));

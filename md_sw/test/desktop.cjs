@@ -71,7 +71,8 @@ const path = require('node:path');
     await page.waitForFunction(() => document.querySelector('#content h1')?.textContent === '更新後文件');
     const invalid = await page.evaluate(file => window.reader.openFile(file), path.join(temp, 'missing.md'));
     assert.equal(invalid, false);
-    assert.match(await page.locator('#toast').textContent(), /找不到這份文件/);
+    assert.match(await page.locator('#open-error').textContent(), /找不到這份文件/);
+    assert.equal(await page.locator('#open-error').isVisible(), true);
     assert.equal(await page.locator('#content h1').textContent(), '更新後文件');
     // Exercise the actual Chromium PDF path without opening a printer dialog.
     const pdf = await app.evaluate(async ({ BrowserWindow }) => {

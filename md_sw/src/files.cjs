@@ -4,7 +4,7 @@ const { TextDecoder } = require('node:util');
 const { createHash, randomUUID } = require('node:crypto');
 
 const EXTENSIONS = new Set(['.md', '.markdown', '.mdown', '.mkd', '.txt']);
-const MAX_DOCUMENT_BYTES = 20 * 1024 * 1024;
+const MAX_DOCUMENT_BYTES = 100 * 1024 * 1024;
 function isDocument(file) { return typeof file === 'string' && EXTENSIONS.has(path.extname(file).toLowerCase()); }
 function decodeWithEncoding(bytes) {
   if (bytes[0] === 0xff && bytes[1] === 0xfe) return { text: new TextDecoder('utf-16le').decode(bytes), encoding: 'utf-16le' };
@@ -22,9 +22,9 @@ async function readDocument(file) {
   const real = await fs.realpath(file);
   const stat = await fs.stat(real);
   if (!stat.isFile()) throw new Error('這不是可讀取的檔案。');
-  if (stat.size > MAX_DOCUMENT_BYTES) throw new Error('檔案超過 20 MB，請選擇較小的文件。');
+  if (stat.size > MAX_DOCUMENT_BYTES) throw new Error('檔案超過 100 MiB，請選擇較小的文件。');
   const bytes = await fs.readFile(real);
-  if (bytes.length > MAX_DOCUMENT_BYTES) throw new Error('檔案超過 20 MB，請選擇較小的文件。');
+  if (bytes.length > MAX_DOCUMENT_BYTES) throw new Error('檔案超過 100 MiB，請選擇較小的文件。');
   const { text, encoding } = decodeWithEncoding(bytes);
   return {
     path: real, name: path.basename(real), text, size: bytes.length, encoding,
@@ -41,7 +41,7 @@ function encodeDocument(text, encoding) {
 async function saveDocument(document, text) {
   const encoding = document.encoding === 'big5' ? 'utf-8' : document.encoding;
   const bytes = encodeDocument(text.replace(/\r\n|\r|\n/g, document.newline), encoding);
-  if (bytes.length > MAX_DOCUMENT_BYTES) throw new Error('儲存後的檔案超過 20 MB，請縮短內容後再試。');
+  if (bytes.length > MAX_DOCUMENT_BYTES) throw new Error('儲存後的檔案超過 100 MiB，請縮短內容後再試。');
   const temp = path.join(path.dirname(document.path), `.md-reader-${randomUUID()}.tmp`);
   const stat = await fs.stat(document.path);
   if (!stat.isFile() || stat.size > MAX_DOCUMENT_BYTES) throw new Error('磁碟上的檔案已變更，請先保留目前的草稿。');

@@ -111,12 +111,28 @@ function showEditor(show) {
   updateEditorControls();
 }
 function loadDocument(doc) {
+  $('open-error').hidden = true;
   editor.value = '';
   savedText = null;
   dirty = false;
   current = doc;
   showEditor(false);
   return renderDocument(doc);
+}
+function showOpenError(error) {
+  $('open-error-path').textContent = error.path;
+  $('open-error-message').textContent = error.message;
+  $('open-error').hidden = false;
+  if (!current?.path) {
+    $('welcome-banner').hidden = true;
+    $('content').replaceChildren(); $('toc').replaceChildren();
+    $('filename').textContent = error.name;
+    $('filename').title = error.path;
+    $('document-location').textContent = error.path;
+    $('document-location').title = error.path;
+    $('document-state').textContent = '開啟失敗';
+    $('word-count').textContent = ''; $('reading-time').textContent = '';
+  }
 }
 async function previewDraft() {
   showEditor(false);
@@ -558,7 +574,7 @@ document.addEventListener('dragenter', event => { event.preventDefault(); if (ev
 document.addEventListener('dragover', event => { event.preventDefault(); event.dataTransfer.dropEffect = 'copy'; });
 document.addEventListener('dragleave', event => { event.preventDefault(); if (--dragDepth <= 0) { dragDepth = 0; $('drop-overlay').hidden = true; } });
 document.addEventListener('drop', event => { event.preventDefault(); dragDepth = 0; $('drop-overlay').hidden = true; const file = event.dataTransfer.files[0]; if (file) api.openFile(api.droppedPath(file)); });
-api.onDocument(loadDocument); api.onSettings(applyPreferences); api.onNotice(notice); api.onSearch(showSearch); api.onTheme(changeTheme);
+api.onDocument(loadDocument); api.onSettings(applyPreferences); api.onNotice(notice); api.onOpenError(showOpenError); api.onSearch(showSearch); api.onTheme(changeTheme);
 api.onSave(saveDraft); api.onPrint(printDocument);
 await renderDocument({ name: '歡迎使用.md', text: welcome, path: null }, true);
 applyPreferences(await api.initialize());
