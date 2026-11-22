@@ -1,0 +1,16 @@
+bin/
+obj/
+publish/
+*.user
+test-results.txt
+test-tabs-preview.png
+interface-preview.png
+annotation-*-preview.png
+shapes*-preview.png
+shape-gallery-preview.png
+recording-smoke.mp4
+recording-smoke-*.mp4
+recording-test-results.txt
+recording-*-preview.png
+recording-smoke-frame.png
+recording-ui-smoke-*.mp4
