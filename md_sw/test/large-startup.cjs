@@ -22,7 +22,7 @@ const os = require('node:os');
   });
   try {
     const page = await app.firstWindow();
-    await page.waitForFunction(() => !document.querySelector('#open-error').hidden);
+    await page.locator('#open-error').waitFor({ state: 'visible' });
     assert.equal(await page.locator('#welcome-banner').isHidden(), true);
     assert.equal(await page.locator('#content').textContent(), '');
     await page.waitForTimeout(4500);

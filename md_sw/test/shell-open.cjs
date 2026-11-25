@@ -27,21 +27,24 @@ function Read-Text($p,$name){$k=[Microsoft.Win32.Registry]::CurrentUser.OpenSubK
   const temp = await fs.mkdtemp(path.join(os.tmpdir(), 'md-shell-menu-'));
   let app, launchedProcess;
   try {
-    app = await _electron.launch({ executablePath: path.join(root, 'dist/win-unpacked/MD Reader.exe'), args: [`--user-data-dir=${temp}`, file], env: { ...process.env, PORTABLE_EXECUTABLE_FILE: executable } });
+    app = await _electron.launch({ executablePath: path.join(root, 'dist/win-unpacked/MD Reader.exe'), args: [`--user-data-dir=${path.join(temp, 'profile')}`, file], env: { ...process.env, PORTABLE_EXECUTABLE_FILE: executable } });
     const page = await app.firstWindow(); await page.waitForSelector('#content h1');
     const result = await app.evaluate(async ({ Menu, dialog }) => new Promise(resolve => {
       dialog.showMessageBox = async (...args) => { resolve(args.at(-1)); return { response: 0 }; };
       Menu.getApplicationMenu().items.find(item => item.label === 'Windows 整合').submenu.items.find(item => item.label === '加入檔案右鍵選單').click();
     }));
-    assert.equal(result.type, 'info'); assert.match(result.message, /已加入/);
+    assert.equal(result.type, 'info', result.detail); assert.match(result.message, /已加入/);
     await app.close(); app = null;
     const after = await readRegistration();
-    assert.equal(after.command, `"${executable}" "%1"`);
+    assert.notEqual(after.command, `"${executable}" "%1"`);
+    assert.match(after.command, /MDReader\\runtime\\[^\\]+\\MD Reader\.exe" "%1"$/);
+    await fs.access(after.command.split('"')[1]);
     assert.equal(after.default, before.default); assert.equal(after.userChoice, before.userChoice);
     const launched = await ps('$start=New-Object System.Diagnostics.ProcessStartInfo;$start.FileName=$request.file;$start.Verb="MDReader";$start.UseShellExecute=$true;$p=[System.Diagnostics.Process]::Start($start);@{pid=$p.Id}|ConvertTo-Json -Compress', { file });
+    launchedProcess = launched.pid;
     const deadline = Date.now() + 45000;
     while (Date.now() < deadline) {
-      const state = await ps('$p=Get-CimInstance Win32_Process -Filter ("ParentProcessId = "+[int]$request.pid)|Where-Object{$_.Name -eq "MD Reader.exe" -and $_.CommandLine -notmatch "--type="}|Select-Object -First 1;if($p){$w=Get-Process -Id $p.ProcessId -ErrorAction SilentlyContinue;@{pid=$p.ProcessId;title=$w.MainWindowTitle}|ConvertTo-Json -Compress}else{@{pid=0;title=""}|ConvertTo-Json -Compress}', launched);
+      const state = await ps('$w=Get-Process -Id $request.pid -ErrorAction SilentlyContinue;if($w){@{pid=$w.Id;title=$w.MainWindowTitle}|ConvertTo-Json -Compress}else{@{pid=0;title=""}|ConvertTo-Json -Compress}', launched);
       if (state.pid) launchedProcess = state.pid;
       if (state.title === '使用說明.md — MD Reader') break;
       await new Promise(resolve => setTimeout(resolve, 500));
@@ -49,7 +52,7 @@ function Read-Text($p,$name){$k=[Microsoft.Win32.Registry]::CurrentUser.OpenSubK
     assert.ok(launchedProcess, 'Shell verb did not launch the reader');
     const actual = await ps('$p=Get-Process -Id $request.pid;@{title=$p.MainWindowTitle}|ConvertTo-Json -Compress', { pid: launchedProcess });
     assert.equal(actual.title, '使用說明.md — MD Reader');
-    console.log('PASS: packaged menu registers stable portable EXE, preserves defaults, and Windows ShellExecute opens a Unicode Markdown document using the MDReader right-click verb.');
+    console.log('PASS: packaged menu caches and registers a fast runtime, preserves defaults, and Windows ShellExecute opens a Unicode document without portable extraction.');
   } finally {
     if (app) await app.close();
     if (launchedProcess) await ps('$p=Get-Process -Id $request.pid -ErrorAction SilentlyContinue;if($p){[void]$p.CloseMainWindow()}', { pid: launchedProcess });

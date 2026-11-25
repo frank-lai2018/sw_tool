@@ -2,7 +2,7 @@ const { app, BrowserWindow, ipcMain, dialog, shell, Menu } = require('electron')
 const path = require('node:path');
 const fs = require('node:fs');
 const { readDocument, saveDocument, readLocalImage, isDocument } = require('./files.cjs');
-const { getExecutablePath, setWindowsIntegration } = require('./windows-integration.cjs');
+const { getExecutablePath, prepareIntegrationExecutable, setWindowsIntegration } = require('./windows-integration.cjs');
 
 const windows = new Map();
 const savingPaths = new Set();
@@ -60,8 +60,9 @@ async function configureIntegration(enabled) {
   integrationBusy = true;
   const window = BrowserWindow.getFocusedWindow();
   try {
-    await setWindowsIntegration(getExecutablePath(app), enabled);
-    const options = { type: 'info', title: 'Windows 整合', message: enabled ? '已加入「使用 MD Reader 開啟」。' : '已移除 MD Reader 的右鍵選單與開啟方式登錄。', detail: enabled ? '在 Markdown 檔案上按右鍵即可使用，也可從「開啟方式」選擇 MD Reader。Windows 11 可能需要先點「顯示更多選項」。搬移 EXE 或更新版本後，請重新執行此設定。' : '之後仍可從閱讀器內開啟文件。', buttons: ['確定'] };
+    const executable = enabled ? await prepareIntegrationExecutable(app) : getExecutablePath(app);
+    await setWindowsIntegration(executable, enabled);
+    const options = { type: 'info', title: 'Windows 整合', message: enabled ? '已加入「使用 MD Reader 開啟」。' : '已移除 MD Reader 的右鍵選單與開啟方式登錄。', detail: enabled ? '已設定快速開啟：免安裝版的執行環境會保存至本機固定目錄，雙擊文件時不需重新解壓縮。在 Markdown 檔案上按右鍵即可使用，也可從「開啟方式」選擇 MD Reader。Windows 11 可能需先點「顯示更多選項」。更新版本後請重新執行此設定。' : '之後仍可從閱讀器內開啟文件。', buttons: ['確定'] };
     if (window && !window.isDestroyed()) await dialog.showMessageBox(window, options); else await dialog.showMessageBox(options);
   } catch (error) {
     const options = { type: 'error', title: 'Windows 整合未完成', message: '無法更新檔案右鍵選單。', detail: error.message, buttons: ['確定'] };
@@ -143,7 +144,7 @@ function createWindow(file) {
         initialized = true;
         if (startupFile) openFile(startupFile);
       }
-      return publicSettings();
+      return { ...publicSettings(), startupFile };
     },
     newWindow: () => { createWindow(); return true; },
     reload: () => activeDocument && openFile(activeDocument.path),

@@ -124,6 +124,7 @@ function showOpenError(error) {
   $('open-error-message').textContent = error.message;
   $('open-error').hidden = false;
   if (!current?.path) {
+    current = { name: error.name, path: null, text: '' };
     $('welcome-banner').hidden = true;
     $('content').replaceChildren(); $('toc').replaceChildren();
     $('filename').textContent = error.name;
@@ -550,7 +551,7 @@ $('page-prev').onclick = () => setPage(pageForMode() - 1);
 $('page-next').onclick = () => setPage(pageForMode() + 1);
 $('page-number').onchange = event => setPage(Number(event.target.value) - 1);
 $('page-number').onkeydown = event => { if (event.key === 'Enter') { event.preventDefault(); setPage(Number(event.target.value) - 1); } };
-$('reload').onclick = () => current.path ? api.reload() : notice('目前顯示範例文件，請先開啟你的 Markdown 檔案。');
+$('reload').onclick = () => current?.path ? api.reload() : notice('請先開啟你的 Markdown 檔案。');
 $('print-button').onclick = printDocument;
 $('toc-tab').onclick = () => setTab(false); $('recent-tab').onclick = () => setTab(true);
 $('search-button').onclick = showSearch; $('close-search').onclick = closeSearch;
@@ -576,5 +577,6 @@ document.addEventListener('dragleave', event => { event.preventDefault(); if (--
 document.addEventListener('drop', event => { event.preventDefault(); dragDepth = 0; $('drop-overlay').hidden = true; const file = event.dataTransfer.files[0]; if (file) api.openFile(api.droppedPath(file)); });
 api.onDocument(loadDocument); api.onSettings(applyPreferences); api.onNotice(notice); api.onOpenError(showOpenError); api.onSearch(showSearch); api.onTheme(changeTheme);
 api.onSave(saveDraft); api.onPrint(printDocument);
-await renderDocument({ name: '歡迎使用.md', text: welcome, path: null }, true);
-applyPreferences(await api.initialize());
+const initialSettings = await api.initialize();
+applyPreferences(initialSettings);
+if (!initialSettings.startupFile && !current) await renderDocument({ name: '歡迎使用.md', text: welcome, path: null }, true);

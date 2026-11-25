@@ -1,6 +1,6 @@
 {
   "name": "md-reader",
-  "version": "1.3.1",
+  "version": "1.3.2",
   "description": "一個安靜、清晰的 Windows Markdown 閱讀器",
   "main": "src/main.cjs",
   "author": "MD Reader",
@@ -24,6 +24,7 @@
   "build": {
     "appId": "tw.mdreader.desktop",
     "productName": "MD Reader",
+    "disableAsarIntegrity": true,
     "electronLanguages": [
       "zh-TW",
       "en-US"
@@ -43,7 +44,7 @@
     "win": {
       "target": "portable",
       "icon": "src/assets/icon.ico",
-      "signExecutable": false
+      "signAndEditExecutable": false
     },
     "portable": {
       "artifactName": "MD-Reader-${version}-Windows.exe"
